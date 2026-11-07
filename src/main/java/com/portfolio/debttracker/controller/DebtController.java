@@ -18,6 +18,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/debts")
+@CrossOrigin(origins = "*")
 @Tag(name = "Debts", description = "Endpoints for managing fixed and installment debts")
 public class DebtController {
 
