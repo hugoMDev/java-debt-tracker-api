@@ -162,6 +162,33 @@ body::before {
     border-radius: 20px;
 }
 
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.btn-config {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--border-color);
+    background-color: rgba(30, 41, 59, 0.6);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.btn-config:hover {
+    color: var(--text-primary);
+    border-color: var(--primary);
+    background-color: var(--bg-card);
+    transform: rotate(30deg);
+}
+
 .server-status {
     display: flex;
     align-items: center;
@@ -965,6 +992,19 @@ body::before {
     border-radius: 50%;
     background-color: rgba(244, 63, 94, 0.15);
     color: var(--danger);
+    font-size: 1.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.25rem;
+}
+
+.modal-icon-config {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    background-color: rgba(99, 102, 241, 0.15);
+    color: var(--primary);
     font-size: 1.6rem;
     display: flex;
     align-items: center;

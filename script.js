@@ -5,9 +5,38 @@
  * ==============================================================================
  */
 
-// API Endpoints Configuration
-const API_BASE_URL = 'http://localhost:8080/api/debts';
-const API_TOTAL_URL = 'http://localhost:8080/api/debts/total';
+// ==============================================================================
+// API Endpoints Configuration (Dinâmico para Localhost e GitHub Pages)
+// ==============================================================================
+const DEFAULT_LOCAL_API = 'http://localhost:8080';
+const STORAGE_KEY_API = 'debt_tracker_api_url';
+
+/**
+ * Retorna a URL base configurada (do localStorage ou fallback apropriado).
+ */
+function getApiBaseUrl() {
+    const saved = localStorage.getItem(STORAGE_KEY_API);
+    if (saved) return saved.trim().replace(/\/+$/, '');
+
+    const isHttps = window.location.protocol === 'https:';
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    // No GitHub Pages sem configuração manual prévia
+    if (isHttps && !isLocalhost) {
+        return '';
+    }
+    return DEFAULT_LOCAL_API;
+}
+
+function getDebtsEndpoint() {
+    const base = getApiBaseUrl();
+    return base ? `${base}/api/debts` : '';
+}
+
+function getTotalEndpoint() {
+    const base = getApiBaseUrl();
+    return base ? `${base}/api/debts/total` : '';
+}
 
 // Application State
 const state = {
@@ -69,6 +98,14 @@ const elements = {
     deleteDebtName: document.getElementById('deleteDebtName'),
     btnCancelDelete: document.getElementById('btnCancelDelete'),
     btnConfirmDelete: document.getElementById('btnConfirmDelete'),
+
+    // API Config Modal (GitHub Pages / Remote)
+    apiModal: document.getElementById('apiModal'),
+    btnConfigApi: document.getElementById('btnConfigApi'),
+    apiUrlInput: document.getElementById('apiUrlInput'),
+    btnSaveApiUrl: document.getElementById('btnSaveApiUrl'),
+    btnResetApiUrl: document.getElementById('btnResetApiUrl'),
+    mixedContentWarning: document.getElementById('mixedContentWarning'),
 
     // Toast Container
     toastContainer: document.getElementById('toastContainer')
@@ -155,11 +192,26 @@ function updateServerStatus(isOnline, label) {
  * Fetch all debts from Spring Boot API (GET /api/debts).
  */
 async function fetchDebts() {
+    const endpoint = getDebtsEndpoint();
+
+    // Se estiver no GitHub Pages (HTTPS) sem backend configurado
+    if (!endpoint) {
+        updateServerStatus(false, 'Configurar API');
+        elements.loadingState.classList.add('hidden');
+        elements.emptyState.classList.remove('hidden');
+        elements.emptyDescription.innerHTML = 
+            'Você está no <strong>GitHub Pages</strong>. O navegador bloqueia requisições diretas para <code>http://localhost:8080</code> por segurança (Mixed Content).<br><br>' +
+            'Clique no botão <strong><i class="fa-solid fa-gear"></i></strong> no topo para configurar a URL HTTPS da sua API (ex: Render, Railway ou túnel ngrok).';
+        elements.itemsCountLabel.textContent = 'Aguardando configuração de API';
+        showToast('Configure a URL HTTPS do seu backend para conectar no GitHub Pages.', 'info', 6000);
+        return;
+    }
+
     state.isLoading = true;
     renderLoading(true);
 
     try {
-        const response = await fetch(API_BASE_URL, {
+        const response = await fetch(endpoint, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json'
@@ -173,7 +225,7 @@ async function fetchDebts() {
         const data = await response.json();
         state.debts = Array.isArray(data) ? data : [];
 
-        updateServerStatus(true, 'API Online (8080)');
+        updateServerStatus(true, 'API Online');
         
         // Also fetch official summary from /api/debts/total
         await fetchSummary();
@@ -182,7 +234,13 @@ async function fetchDebts() {
     } catch (error) {
         console.error('Erro ao buscar dívidas:', error);
         updateServerStatus(false, 'API Indisponível');
-        showToast('Não foi possível conectar à API Spring Boot. Verifique se o servidor está rodando na porta 8080.', 'error', 5000);
+
+        const isHttpsPage = window.location.protocol === 'https:';
+        if (isHttpsPage && endpoint.startsWith('http://')) {
+            showToast('Bloqueado por Mixed Content: Páginas HTTPS não podem acessar APIs HTTP (localhost). Use HTTPS na URL da API.', 'error', 7000);
+        } else {
+            showToast('Não foi possível conectar à API Spring Boot. Verifique se o servidor está rodando e com CORS liberado.', 'error', 5000);
+        }
         renderTable();
     } finally {
         state.isLoading = false;
@@ -195,24 +253,27 @@ async function fetchDebts() {
  * Falls back to local memory calculation if endpoint is unavailable.
  */
 async function fetchSummary() {
-    try {
-        const response = await fetch(API_TOTAL_URL, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' }
-        });
+    const totalUrl = getTotalEndpoint();
+    if (totalUrl) {
+        try {
+            const response = await fetch(totalUrl, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
 
-        if (response.ok) {
-            const summary = await response.json();
-            updateSummaryCards(
-                summary.totalAmount,
-                summary.totalDebtsCount,
-                summary.fixedDebtsCount,
-                summary.installmentDebtsCount
-            );
-            return;
+            if (response.ok) {
+                const summary = await response.json();
+                updateSummaryCards(
+                    summary.totalAmount,
+                    summary.totalDebtsCount,
+                    summary.fixedDebtsCount,
+                    summary.installmentDebtsCount
+                );
+                return;
+            }
+        } catch {
+            // Fallback: calculate locally from loaded state.debts
         }
-    } catch {
-        // Fallback: calculate locally from loaded state.debts
     }
 
     // Local calculation fallback
@@ -238,10 +299,17 @@ function updateSummaryCards(totalAmount, totalDebts, fixedDebts, installmentDebt
  * @param {object} payload
  */
 async function createDebt(payload) {
+    const endpoint = getDebtsEndpoint();
+    if (!endpoint) {
+        showToast('Configure a URL da API antes de cadastrar dívidas.', 'error');
+        openApiModal();
+        return;
+    }
+
     setSubmitting(true);
 
     try {
-        const response = await fetch(API_BASE_URL, {
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -284,8 +352,11 @@ async function createDebt(payload) {
  * @param {number} id
  */
 async function deleteDebt(id) {
+    const endpoint = getDebtsEndpoint();
+    if (!endpoint) return;
+
     try {
-        const response = await fetch(`${API_BASE_URL}/${id}`, {
+        const response = await fetch(`${endpoint}/${id}`, {
             method: 'DELETE'
         });
 
@@ -594,6 +665,27 @@ function closeDeleteModal() {
     elements.deleteModal.classList.add('hidden');
 }
 
+function openApiModal() {
+    const currentUrl = localStorage.getItem(STORAGE_KEY_API) || (window.location.protocol === 'https:' ? '' : DEFAULT_LOCAL_API);
+    elements.apiUrlInput.value = currentUrl;
+    checkMixedContentWarning();
+    elements.apiModal.classList.remove('hidden');
+    elements.apiUrlInput.focus();
+}
+
+function closeApiModal() {
+    elements.apiModal.classList.add('hidden');
+}
+
+function checkMixedContentWarning() {
+    const val = elements.apiUrlInput.value.trim();
+    if (window.location.protocol === 'https:' && val.startsWith('http://')) {
+        elements.mixedContentWarning.style.display = 'block';
+    } else {
+        elements.mixedContentWarning.style.display = 'none';
+    }
+}
+
 // ==============================================================================
 // Event Listeners Initialization
 // ==============================================================================
@@ -644,7 +736,39 @@ function setupEventListeners() {
         fetchDebts();
     });
 
-    // Modal Events
+    // API Config Modal Events
+    elements.btnConfigApi.addEventListener('click', openApiModal);
+    elements.apiModal.addEventListener('click', (e) => {
+        if (e.target === elements.apiModal) closeApiModal();
+    });
+    elements.apiUrlInput.addEventListener('input', checkMixedContentWarning);
+
+    elements.btnSaveApiUrl.addEventListener('click', () => {
+        const url = elements.apiUrlInput.value.trim().replace(/\/+$/, '');
+        if (url) {
+            if (window.location.protocol === 'https:' && url.startsWith('http://')) {
+                showToast('Aviso: URLs HTTP são bloqueadas em páginas HTTPS (Mixed Content). Recomendamos usar HTTPS.', 'error', 6000);
+            }
+            localStorage.setItem(STORAGE_KEY_API, url);
+            showToast(`URL da API salva: ${url}`, 'success');
+        } else {
+            localStorage.removeItem(STORAGE_KEY_API);
+            showToast('URL redefinida para o padrão.', 'info');
+        }
+        closeApiModal();
+        fetchDebts();
+    });
+
+    elements.btnResetApiUrl.addEventListener('click', () => {
+        localStorage.removeItem(STORAGE_KEY_API);
+        elements.apiUrlInput.value = DEFAULT_LOCAL_API;
+        checkMixedContentWarning();
+        showToast('Restaurado para http://localhost:8080', 'info');
+        closeApiModal();
+        fetchDebts();
+    });
+
+    // Delete Modal Events
     elements.btnCancelDelete.addEventListener('click', closeDeleteModal);
     elements.deleteModal.addEventListener('click', (e) => {
         if (e.target === elements.deleteModal) closeDeleteModal();
@@ -656,10 +780,11 @@ function setupEventListeners() {
         }
     });
 
-    // Escape key to close modal
+    // Escape key to close modals
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !elements.deleteModal.classList.contains('hidden')) {
-            closeDeleteModal();
+        if (e.key === 'Escape') {
+            if (!elements.deleteModal.classList.contains('hidden')) closeDeleteModal();
+            if (!elements.apiModal.classList.contains('hidden')) closeApiModal();
         }
     });
 

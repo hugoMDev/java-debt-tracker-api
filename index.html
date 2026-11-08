@@ -31,9 +31,14 @@
                 </div>
             </div>
 
-            <div class="server-status" id="serverStatus" title="Status da conexão com a API Java">
-                <span class="status-indicator"></span>
-                <span class="status-label" id="statusLabel">Conectando...</span>
+            <div class="nav-actions">
+                <div class="server-status" id="serverStatus" title="Status da conexão com a API Java">
+                    <span class="status-indicator"></span>
+                    <span class="status-label" id="statusLabel">Conectando...</span>
+                </div>
+                <button type="button" class="btn-config" id="btnConfigApi" title="Configurar URL da API / Backend">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
             </div>
         </div>
     </nav>
@@ -343,6 +348,39 @@
                 <button type="button" class="btn btn-danger" id="btnConfirmDelete">
                     <i class="fa-solid fa-trash-can"></i> Excluir Dívida
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Settings Modal (Para GitHub Pages e Ambientes Remotos) -->
+    <div class="modal-backdrop hidden" id="apiModal">
+        <div class="modal-card">
+            <div class="modal-icon-config">
+                <i class="fa-solid fa-server"></i>
+            </div>
+            <h3 class="modal-title">Conectar API Backend</h3>
+            <p class="modal-description">
+                Para o <strong>GitHub Pages</strong> se comunicar com o backend, informe a URL pública HTTPS da sua API (ex: Render, Railway ou túnel ngrok).
+            </p>
+            <div class="form-group" style="text-align: left; margin-bottom: 1.25rem;">
+                <label for="apiUrlInput" class="form-label">URL da API Spring Boot</label>
+                <div class="input-container">
+                    <i class="fa-solid fa-link input-icon"></i>
+                    <input 
+                        type="url" 
+                        id="apiUrlInput" 
+                        class="form-input" 
+                        placeholder="https://minha-api.onrender.com"
+                        spellcheck="false"
+                    >
+                </div>
+                <div id="mixedContentWarning" class="field-error" style="margin-top: 0.35rem; display: none;">
+                    Atenção: páginas HTTPS (GitHub Pages) bloqueiam URLs HTTP por Mixed Content. Use uma URL com https://.
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="btnResetApiUrl" title="Redefinir para padrão local">Padrão Local</button>
+                <button type="button" class="btn btn-primary" id="btnSaveApiUrl">Salvar e Conectar</button>
             </div>
         </div>
     </div>
